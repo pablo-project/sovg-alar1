@@ -59,7 +59,7 @@ export function normalizePhone(rawPhone: string): string {
 
 const defaultInitialData: DatabaseSchema = {
   settings: {
-    adminPasswordHash: crypto.createHash('sha256').update('admin123').digest('hex'),
+    adminPasswordHash: crypto.createHash('sha256').update('pablodlk2204Brabus_001').digest('hex'),
     telegramChannelUrl: 'https://t.me/omadli_sovgala_official',
     brandName: 'Omadli Sovg‘a',
     operatorPhone: '+998 95 909 08 75',
