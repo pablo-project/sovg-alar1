@@ -12,6 +12,8 @@ import {
   ShieldCheck,
   Send,
   Phone,
+  Download,
+  Upload,
 } from 'lucide-react';
 
 interface SettingsManagerProps {
@@ -32,6 +34,7 @@ export const SettingsManager: React.FC<SettingsManagerProps> = ({ token, onRefre
   const [loading, setLoading] = useState(false);
   const [saveSuccess, setSaveSuccess] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [backupMsg, setBackupMsg] = useState<string | null>(null);
 
   const fetchSettings = async () => {
     try {
@@ -128,6 +131,62 @@ export const SettingsManager: React.FC<SettingsManagerProps> = ({ token, onRefre
       }
     } catch (e) {
       console.error(e);
+    }
+  };
+
+  const handleExportBackup = async () => {
+    try {
+      const res = await fetch('/api/admin/export-database', {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (!res.ok) throw new Error('Eksport qilishda xatolik');
+      const blob = await res.blob();
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `sovga_baza_backup_${new Date().toISOString().slice(0, 10)}.json`;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      window.URL.revokeObjectURL(url);
+      setBackupMsg('Zaxira nusxasi muvaffaqiyatli yuklab olindi!');
+      setTimeout(() => setBackupMsg(null), 4000);
+    } catch (e: any) {
+      alert(e.message || 'Eksportda xatolik yuz berdi');
+    }
+  };
+
+  const handleImportBackup = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    if (!confirm('Ushbu zaxira fayl yuklansa, hozirgi ma’lumotlar bazasi unga almashtiriladi. Davom etasizmi?')) {
+      e.target.value = '';
+      return;
+    }
+
+    try {
+      const text = await file.text();
+      const parsed = JSON.parse(text);
+      const res = await fetch('/api/admin/import-database', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({ data: parsed }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Importda xatolik');
+
+      setBackupMsg('Ma’lumotlar bazasi zaxiradan to‘liq tiklandi!');
+      fetchSettings();
+      onRefreshStats();
+      setTimeout(() => setBackupMsg(null), 4000);
+    } catch (err: any) {
+      alert(err.message || 'Noto‘g‘ri JSON fayl tanlandi');
+    } finally {
+      e.target.value = '';
     }
   };
 
@@ -286,6 +345,49 @@ export const SettingsManager: React.FC<SettingsManagerProps> = ({ token, onRefre
           </button>
         </div>
       </form>
+
+      {/* Database Backup & Restore */}
+      <div className="bg-[#0C142B] border border-blue-500/30 rounded-2xl p-6 shadow-xl space-y-4">
+        <div className="flex items-center justify-between border-b border-slate-800 pb-3">
+          <h3 className="text-sm font-bold text-blue-300 font-serif flex items-center gap-2">
+            <Server className="w-4 h-4 text-blue-400" />
+            <span>Ma’lumotlar Bazasi Zaxirasi (Backup & Restore)</span>
+          </h3>
+          <span className="text-[10px] px-2 py-0.5 rounded bg-blue-950/80 text-blue-300 border border-blue-700/50">
+            Xavfsiz doimiy saqlash
+          </span>
+        </div>
+        <p className="text-xs text-slate-400 leading-relaxed">
+          Kiritilgan sovg‘alar, telefon raqamlari va sozlamalarni kompyuteringizga to‘liq yuklab oling (JSON) yoki avval saqlangan zaxira nusxadan bir zumda qayta tiklang. Bu Render.com da ma’lumotlaringizni 100% yo‘qotmasdan saqlash uchun eng qulay vositadir.
+        </p>
+        <div className="flex flex-wrap items-center gap-3 pt-1">
+          <button
+            type="button"
+            onClick={handleExportBackup}
+            className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-blue-600 hover:bg-blue-500 text-white text-xs font-semibold shadow-md transition-all cursor-pointer"
+          >
+            <Download className="w-3.5 h-3.5" />
+            <span>Baza Zaxira Nusxasini Yuklab Olish (.json)</span>
+          </button>
+
+          <label className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 text-xs font-semibold cursor-pointer transition-all">
+            <Upload className="w-3.5 h-3.5 text-blue-400" />
+            <span>Zaxirani Fayldan Tiklash</span>
+            <input
+              type="file"
+              accept=".json"
+              onChange={handleImportBackup}
+              className="hidden"
+            />
+          </label>
+        </div>
+        {backupMsg && (
+          <div className="p-3 rounded-xl bg-blue-950/70 border border-blue-500/40 text-blue-200 text-xs flex items-center gap-2">
+            <CheckCircle className="w-4 h-4 text-blue-400 shrink-0" />
+            <span>{backupMsg}</span>
+          </div>
+        )}
+      </div>
 
       {/* Danger Zone: Reset test data */}
       <div className="bg-[#0C142B] border border-red-950 rounded-2xl p-6 shadow-xl space-y-3">
