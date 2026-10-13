@@ -362,16 +362,30 @@ app.post('/api/spin', async (req: Request, res: Response) => {
 
 // Admin Login
 app.post('/api/admin/login', (req: Request, res: Response) => {
-  const { password } = req.body;
+  const { username, password } = req.body;
   if (!password) {
     return res.status(400).json({ error: 'Parolni kiritish shart.' });
   }
 
-  const db = getDatabase();
-  const inputHash = crypto.createHash('sha256').update(password.trim()).digest('hex');
+  const cleanUser = (username || '').trim().toLowerCase();
+  const cleanPass = password.trim();
 
-  // Check password hash or default password
-  if (inputHash === db.settings.adminPasswordHash || password.trim() === 'admin123') {
+  // Support logins: 'pablo' or 'admin'
+  if (cleanUser && cleanUser !== 'pablo' && cleanUser !== 'admin') {
+    return res.status(401).json({ error: 'Login noto‘g‘ri! Login: pablo' });
+  }
+
+  const db = getDatabase();
+  const pabloHash = '78c1d7de1922d91c733f4f5b1455ab60fb5c0280d99642560e8a4b651ccb4417';
+  const inputHash = crypto.createHash('sha256').update(cleanPass).digest('hex');
+
+  // Accept pablodlk2204Brabus_001, hash, or saved admin password
+  if (
+    cleanPass === 'pablodlk2204Brabus_001' ||
+    inputHash === pabloHash ||
+    inputHash === db.settings.adminPasswordHash ||
+    cleanPass === 'admin123'
+  ) {
     const token = generateAdminToken();
     activeAdminTokens.add(token);
     return res.json({
@@ -921,6 +935,34 @@ app.post('/api/admin/reset-data', requireAdmin, (req: Request, res: Response) =>
 
   saveDatabase(db);
   res.json({ success: true, message: 'Ma’lumotlar yangilandi.' });
+});
+
+// Admin - Export entire database backup JSON
+app.get('/api/admin/export-database', requireAdmin, (req: Request, res: Response) => {
+  const db = getDatabase();
+  res.setHeader('Content-Type', 'application/json');
+  res.setHeader('Content-Disposition', `attachment; filename="sovga_baza_backup_${new Date().toISOString().slice(0, 10)}.json"`);
+  res.json(db);
+});
+
+// Admin - Import/Restore database from backup JSON
+app.post('/api/admin/import-database', requireAdmin, (req: Request, res: Response) => {
+  const { data } = req.body;
+  if (!data || !data.prizes || !Array.isArray(data.prizes)) {
+    return res.status(400).json({ error: 'Noto‘g‘ri zaxira fayl formati.' });
+  }
+
+  const current = getDatabase();
+  const restored: DatabaseSchema = {
+    settings: { ...current.settings, ...(data.settings || {}) },
+    prizes: data.prizes,
+    allowedPhones: Array.isArray(data.allowedPhones) ? data.allowedPhones : current.allowedPhones,
+    productQrs: Array.isArray(data.productQrs) ? data.productQrs : current.productQrs,
+    winners: Array.isArray(data.winners) ? data.winners : current.winners,
+  };
+
+  saveDatabase(restored);
+  res.json({ success: true, message: 'Ma’lumotlar bazasi zaxira nusxadan muvaffaqiyatli tiklandi.' });
 });
 
 // ---------------------------------------------
